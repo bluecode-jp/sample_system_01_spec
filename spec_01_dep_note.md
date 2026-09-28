@@ -33,7 +33,7 @@ Firebase（Hosting 2サイト / Cloud Functions 第2世代 / Firestore Enterpris
 | 16  | 予算アラート                                                    | `gcloud billing budgets create`                                       | 11章 |
 
 
-**ユーザーに確認が必要な作業**：請求先アカウントの選択（課金が始まる）、既存リソースの削除、本番データを変える操作（シード・在庫の増減・画像アップロード）。それ以外は確認なしで進めてよいとユーザーから言われた。
+**ユーザーに確認が必要な作業**：請求先アカウントの選択（課金が始まる）、既存リソースの削除、本番データを変える操作（シード・業務データの更新・画像アップロードなど）。それ以外は確認なしで進めてよいとユーザーから言われた。
 
 ---
 
@@ -61,7 +61,7 @@ Firebase（Hosting 2サイト / Cloud Functions 第2世代 / Firestore Enterpris
 
 - **プロジェクトの表示名にアンダースコアは使えない。**
   - 症状: `project display name contains invalid characters`。
-  - 対処: 表示名はハイフンにする（例 `ims_v3` → `ims-v3`）。プロジェクトID もハイフンと英小文字・数字のみ。
+  - 対処: 表示名はハイフンにする（例 `my_app` → `my-app`）。プロジェクトID もハイフンと英小文字・数字のみ。
 - **Blaze（従量課金）への切り替えは CLI でできる。**
   - `gcloud billing accounts list --account=<account>` で候補を出し、**どれに紐づけるかはユーザーに選んでもらう**（課金が始まるため）。
   - `gcloud billing projects link <project-id> --billing-account=<billing-account-id> --account=<account>`
@@ -73,7 +73,7 @@ Firebase（Hosting 2サイト / Cloud Functions 第2世代 / Firestore Enterpris
   run.googleapis.com eventarc.googleapis.com recaptchaenterprise.googleapis.com
   firebaseappcheck.googleapis.com identitytoolkit.googleapis.com billingbudgets.googleapis.com
   ```
-- **Hosting の既定サイトは、プロジェクト作成時に** `<project-id>` **で自動作成される。** 2つ目（管理画面用）は `firebase hosting:sites:create <project-id>-admin` で作る。
+- **Hosting の既定サイトは、プロジェクト作成時に** `<project-id>` **で自動作成される。** 2つ目（管理画面用など）は `firebase hosting:sites:create <project-id>-admin` で作る（`-admin` は例）。
 - `.firebaserc` **は、**`projects.default` **と** `targets` **のキー（プロジェクトID）の両方を書き換える。** 開発用のダミーID（`demo-…`）が残っていると、ターゲットが解決されない。
 - **Web アプリの設定値**は `firebase apps:sdkconfig WEB <web-app-id>` で取れる。`storageBucket` は新しい形式の `<project-id>.firebasestorage.app`（旧 `appspot.com` ではない）。
 
@@ -89,7 +89,7 @@ Firebase（Hosting 2サイト / Cloud Functions 第2世代 / Firestore Enterpris
     - Admin SDK（Functions・スクリプト）: `getFirestore(<db-id>)`。
     - `firebase.json` の `firestore.database` を `<db-id>` にする（ルール・インデックスのデプロイ先）。
     - **エミュレータは** `(default)` **のままにする**（`@firebase/rules-unit-testing` の `ctx.firestore()` が `(default)` 前提のため）。本番かどうかで切り替える（クライアント: エミュレータ使用フラグ、Functions: `FUNCTIONS_EMULATOR`、スクリプト: `--prod`）。
-- **データベースIDは 4〜63 文字。** `ims` のような3文字は `database_id should be 4-63 characters` で失敗した。
+- **データベースIDは 4〜63 文字。** `app` のような3文字は `database_id should be 4-63 characters` で失敗した。
 - **作成時に必ず次の2つのフラグを付ける。付けないと MongoDB 互換モードで作られる。**
   ```
   gcloud firestore databases create --database=<db-id> --location=<region> \
@@ -163,9 +163,10 @@ curl -X PATCH … "https://firebaseappcheck.googleapis.com/v1/projects/<project-
 
 ## 6. 環境変数とデプロイ
 
-- `.env.production.local`（`apps/*/`）: `VITE_FIREBASE_*`、`VITE_RECAPTCHA_SITE_KEY`、管理画面は QR 用の `VITE_CLIENT_URL`。git 管理外（`.gitignore` の `.env*.local`）。
+- `.env.production.local`（`apps/*/`）: `VITE_FIREBASE_*`、`VITE_RECAPTCHA_SITE_KEY`、そのほかアプリ固有の値（例: 管理画面から案内するクライアントの URL）。git 管理外（`.gitignore` の `.env*.local`）。
 - `functions/.env`: Functions の環境変数。秘密情報でなければ git 管理でよい。
 - `functions/.env` **を消しても、デプロイ済みの環境変数は消えない。**
+  - 例として、App Check の検証モードを自前の環境変数 `APP_CHECK_MODE`（`monitor` / `enforce`）で切り替えていた場合。
   - 症状: `APP_CHECK_MODE=monitor` を外すために `.env` を削除して再デプロイしたが、拒否されなかった。
   - 確認: `gcloud run services describe <function> --region=<region> --format='yaml(spec.template.spec.containers[0].env)'`
   - 対処: 値を明示的に書き換える（`APP_CHECK_MODE=enforce`）。
@@ -205,9 +206,9 @@ curl -X PATCH … "https://firebaseappcheck.googleapis.com/v1/projects/<project-
   - 起動中の端末が複数あるときは、どれを使うかを確かめる。
   - Xcode 27 には `Simulator.app` がない（`Xcode.app/Contents/Applications` にあるのは `DeviceHub.app` など）。表示が必要なら、ユーザーの表示環境を使う。
 - **テスト中にシミュレータが止まっていたら、勝手に起動しない。** ユーザーが止めた可能性がある。
-- **「最初からバーコードが映った状態で開始」のテストでは、「スキャンを停止」ボタンの表示を待たない。** 読み取りが一瞬で終わり、ボタンが消えるため、待つ手順が失敗する（アプリの不具合ではない）。開始ボタンをタップしたら、すぐに結果の表示を待つ。
+- **「最初からバーコードが映った状態で開始」のテストでは、停止ボタンの表示を待たない。** 読み取りが一瞬で終わり、ボタンが消えるため、待つ手順が失敗する（アプリの不具合ではない）。開始ボタンをタップしたら、すぐに結果の表示を待つ。
 - ユーザーが目で追えるように、各結果の表示後に数秒止める。
-- 本番でテストする場合、在庫の増減ボタンなどデータを変える操作はしない。
+- 本番でテストする場合、データを変える操作（数量の増減・登録・削除など）はしない。
 
 ---
 
@@ -226,7 +227,7 @@ curl -X PATCH … "https://firebaseappcheck.googleapis.com/v1/projects/<project-
   - Firestore: **ログイン済みの ID トークンを付けて** REST で読む → `PERMISSION_DENIED`。ID トークンなしだと、ルールによる拒否と区別できない。
   - Storage: `Authorization: Firebase <ID トークン>` で API を呼ぶ → 401。
   - Auth: `accounts:signInWithPassword` → `Firebase App Check token is invalid.`
-  - 自前 API: `curl /api/<resource>` → 401「アプリの検証に失敗しました」。
+  - 自前 API: `curl /api/<resource>` → 401（メッセージはアプリで定義したもの）。
   - ブラウザでログアウトしてから再ログインし、画面が動くこと。
 - **トークン付きのダウンロード URL（**`?alt=media&token=…`**）は App Check の対象外。** `<img>` での画像表示は、Storage を適用しても影響を受けない。そのため、コンソールの Storage の指標は「未検証 100%」近くになるが、問題ない。
 - **App Check の対象外のもの**: 管理者の OAuth トークン（gcloud）、サービスアカウント（Admin SDK）、Hosting の静的ファイル、`/health`。
