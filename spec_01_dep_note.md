@@ -92,9 +92,9 @@ Firebase（Hosting 2サイト / Cloud Functions 第2世代 / Firestore Enterpris
 - **データベースIDは 4〜63 文字。** `ims` のような3文字は `database_id should be 4-63 characters` で失敗した。
 - **作成時に必ず次の2つのフラグを付ける。付けないと MongoDB 互換モードで作られる。**
   ```
-  gcloud firestore databases create --database=[[ORCA_RICH_MD:5058dd30c2af01bb3b2aaed766fa382d:inline-html:%3Cdb-id%3E]] --location=[[ORCA_RICH_MD:5058dd30c2af01bb3b2aaed766fa382d:inline-html:%3Cregion%3E]] \
+  gcloud firestore databases create --database=<db-id> --location=<region> \
     --edition=enterprise --enable-firestore-data-access --enable-realtime-updates \
-    --project=[[ORCA_RICH_MD:5058dd30c2af01bb3b2aaed766fa382d:inline-html:%3Cproject-id%3E]] --account=[[ORCA_RICH_MD:5058dd30c2af01bb3b2aaed766fa382d:inline-html:%3Caccount%3E]]
+    --project=<project-id> --account=<account>
   ```
   - 症状: シードで `9 FAILED_PRECONDITION: Access to this database via the Firestore in Native mode API is disabled`。
   - 原因: gcloud の既定では `firestoreDataAccessMode: DISABLED` / `mongodbCompatibleDataAccessMode: ENABLED` / `realtimeUpdatesMode: DISABLED` になる。**この設定は作成後に変えられない。**
@@ -129,12 +129,12 @@ Firebase（Hosting 2サイト / Cloud Functions 第2世代 / Firestore Enterpris
 ### 5-1. キーの作成と登録
 
 ```
-gcloud recaptcha keys create --web --display-name=[[ORCA_RICH_MD:5058dd30c2af01bb3b2aaed766fa382d:inline-html:%3Cname%3E]] --integration-type=score \
-  --domains=[[ORCA_RICH_MD:5058dd30c2af01bb3b2aaed766fa382d:inline-html:%3Cproject-id%3E]].web.app,[[ORCA_RICH_MD:5058dd30c2af01bb3b2aaed766fa382d:inline-html:%3Cproject-id%3E]].firebaseapp.com,[[ORCA_RICH_MD:5058dd30c2af01bb3b2aaed766fa382d:inline-html:%3Cproject-id%3E]]-admin.web.app,[[ORCA_RICH_MD:5058dd30c2af01bb3b2aaed766fa382d:inline-html:%3Cproject-id%3E]]-admin.firebaseapp.com \
-  --project=[[ORCA_RICH_MD:5058dd30c2af01bb3b2aaed766fa382d:inline-html:%3Cproject-id%3E]] --account=[[ORCA_RICH_MD:5058dd30c2af01bb3b2aaed766fa382d:inline-html:%3Caccount%3E]]
+gcloud recaptcha keys create --web --display-name=<name> --integration-type=score \
+  --domains=<project-id>.web.app,<project-id>.firebaseapp.com,<project-id>-admin.web.app,<project-id>-admin.firebaseapp.com \
+  --project=<project-id> --account=<account>
 
-curl -X PATCH … "https://firebaseappcheck.googleapis.com/v1/projects/[[ORCA_RICH_MD:5058dd30c2af01bb3b2aaed766fa382d:inline-html:%3Cproject-id%3E]]/apps/[[ORCA_RICH_MD:5058dd30c2af01bb3b2aaed766fa382d:inline-html:%3Cweb-app-id%3E]]/recaptchaEnterpriseConfig?updateMask=siteKey" \
-  -d '{"siteKey":"[[ORCA_RICH_MD:5058dd30c2af01bb3b2aaed766fa382d:inline-html:%3Csite-key%3E]]"}'
+curl -X PATCH … "https://firebaseappcheck.googleapis.com/v1/projects/<project-id>/apps/<web-app-id>/recaptchaEnterpriseConfig?updateMask=siteKey" \
+  -d '{"siteKey":"<site-key>"}'
 ```
 
 - ドメインには、使う Hosting のドメインをすべて入れる（`web.app` と `firebaseapp.com` の両方）。
