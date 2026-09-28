@@ -18,7 +18,7 @@ AI（Claude Code など）にシステムを開発・デプロイさせるとき
 
 - **フロントエンド**：React（Vite）の SPA（スマホ用クライアントと管理画面の2つ）
 - **バックエンド**：Cloud Functions for Firebase（第2世代、REST API）
-- **Firebase**：Hosting / Firestore（Enterprise）/ Storage / Authentication / App Check（reCAPTCHA Enterprise）
+- **Firebase**：Hosting / Firestore（Enterprise）/ Storage / Authentication（App Check は当面使わない）
 - **言語**：TypeScript
 
 ノート中の `<project-id>` や `<region>` などのプレースホルダーは、案件ごとに読み替えてください。
