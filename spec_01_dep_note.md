@@ -14,22 +14,22 @@ Firebase（Hosting 2サイト / Cloud Functions 第2世代 / Firestore Enterpris
 ## 0. 全体の手順（この順で進める）
 
 
-| #  | 作業                                                          | 主なコマンド・API                                                        | 詳細 |
-| -- | ------------------------------------------------------------- | ------------------------------------------------------------------------ | ---- |
-| 1  | gcloud / firebase のアカウント確認                            | `gcloud auth list`、`firebase login:list`                                | 1章  |
-| 2  | プロジェクト作成                                              | Firebase MCP `firebase_create_project` または `firebase projects:create` | 2章  |
-| 3  | 請求先の紐づけ（Blaze）                                       | `gcloud billing projects link`                                           | 2章  |
-| 4  | 必要な API の有効化                                           | `gcloud services enable …`                                               | 2章  |
-| 5  | Web アプリ登録・Hosting サイト追加                            | `firebase apps:create web`、`firebase hosting:sites:create`              | 2章  |
-| 6  | Firestore Enterprise 作成                                     | `gcloud firestore databases create …`                                    | 3章  |
-| 7  | Storage バケット作成                                          | Firebase Storage REST API                                                | 4章  |
-| 8  | Authentication 初期化・メール/パスワード有効化                | Identity Toolkit REST API                                                | 4章  |
-| 9  | `.firebaserc`・`.env.production.local`・`functions/.env` 設定 | ファイル編集                                                             | 5章  |
-| 10 | デプロイ                                                      | `npm run deploy`（`firebase deploy`）                                    | 5章  |
-| 11 | ブラウザで動作確認（コンソールにエラーが出ていないか）        | Playwright MCP                                                           | 6章  |
-| 12 | 初期データ投入                                                | シードスクリプト                                                         | 7章  |
-| 13 | 実機相当のテスト（カメラなど）                                | SimulatorCameraEx + Maestro                                              | 8章  |
-| 14 | 予算アラート                                                  | `gcloud billing budgets create`                                          | 9章  |
+| #   | 作業                                                        | 主なコマンド・API                                                            | 詳細  |
+| --- | --------------------------------------------------------- | --------------------------------------------------------------------- | --- |
+| 1   | gcloud / firebase のアカウント確認                                | `gcloud auth list`、`firebase login:list`                              | 1章  |
+| 2   | プロジェクト作成                                                  | Firebase MCP `firebase_create_project` または `firebase projects:create` | 2章  |
+| 3   | 請求先の紐づけ（Blaze）                                            | `gcloud billing projects link`                                        | 2章  |
+| 4   | 必要な API の有効化                                              | `gcloud services enable …`                                            | 2章  |
+| 5   | Web アプリ登録・Hosting サイト追加                                   | `firebase apps:create web`、`firebase hosting:sites:create`            | 2章  |
+| 6   | Firestore Enterprise 作成                                   | `gcloud firestore databases create …`                                 | 3章  |
+| 7   | Storage バケット作成                                            | Firebase Storage REST API                                             | 4章  |
+| 8   | Authentication 初期化・メール/パスワード有効化                           | Identity Toolkit REST API                                             | 4章  |
+| 9   | `.firebaserc`・`.env.production.local`・`functions/.env` 設定 | ファイル編集                                                                | 5章  |
+| 10  | デプロイ                                                      | `npm run deploy`（`firebase deploy`）                                   | 5章  |
+| 11  | ブラウザで動作確認（コンソールにエラーが出ていないか）                               | Playwright MCP                                                        | 6章  |
+| 12  | 初期データ投入                                                   | シードスクリプト                                                              | 7章  |
+| 13  | 実機相当のテスト（カメラなど）                                           | SimulatorCameraEx + Maestro                                           | 8章  |
+| 14  | 予算アラート                                                    | `gcloud billing budgets create`                                       | 9章  |
 
 
 **ユーザーに確認が必要な作業**：請求先アカウントの選択（課金が始まる）、既存リソースの削除、本番データを変える操作（シード・業務データの更新・画像アップロードなど）。それ以外は確認なしで進めてよいとユーザーから言われた。
@@ -74,6 +74,7 @@ Firebase（Hosting 2サイト / Cloud Functions 第2世代 / Firestore Enterpris
   ```
 - **Hosting の既定サイトは、プロジェクト作成時に** `<project-id>` **で自動作成される。** 2つ目（管理画面用など）は `firebase hosting:sites:create <project-id>-admin` で作る（`-admin` は例）。
 - `.firebaserc` **は、**`projects.default` **と** `targets` **のキー（プロジェクトID）の両方を書き換える。** 開発用のダミーID（`demo-…`）が残っていると、ターゲットが解決されない。
+- `.firebaserc` **の既定を本番にすると、エミュレータも本番のプロジェクトIDで起動してしまう。** クライアントはエミュレータ用に `demo-…` を使うため、食い違って動かなくなる。エミュレータの起動スクリプトに `--project demo-<system>` を明示し、デプロイのスクリプトにも `--project <project-id>` を明示する。
 - **Web アプリの設定値**は `firebase apps:sdkconfig WEB <web-app-id>` で取れる。`storageBucket` は新しい形式の `<project-id>.firebasestorage.app`（旧 `appspot.com` ではない）。
 
 ---
@@ -133,6 +134,9 @@ Firebase（Hosting 2サイト / Cloud Functions 第2世代 / Firestore Enterpris
   - 確認: `gcloud run services describe <function> --region=<region> --format='yaml(spec.template.spec.containers[0].env)'`
   - 対処: 値を明示的に書き換える（`FEATURE_MODE=live`）。
 - **初回デプロイは** `npm run deploy -- --force` で、Artifact Registry のクリーンアップポリシーの確認を自動で通す。Functions の初回作成は数分かかる。
+  - デプロイのログに `No cleanup policy detected` の警告が出ても、`--force` で「1日より古いイメージを削除」のポリシーは作られていた。変更する前に `firebase functions:artifacts:setpolicy` の表示（`update an existing policy`）で確認できる。
+- **ルールがどのデータベースに入ったか**は、Rules API の releases で確認できる（`cloud.firestore/<db-id>` と出れば名前付き DB に適用されている）。
+  - `curl -H "Authorization: Bearer $T" -H "x-goog-user-project: <project-id>" https://firebaserules.googleapis.com/v1/projects/<project-id>/releases`
 - Functions 第2世代の実体は Cloud Run。ログは `resource.type="cloud_run_revision"`、`resource.labels.service_name="<function>"` で絞る。
 
 ---

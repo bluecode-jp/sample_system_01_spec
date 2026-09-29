@@ -73,9 +73,13 @@ Firebase（Hosting / Cloud Functions / Firestore Enterprise / Storage / Authenti
 - `npm install <pkg> -w <新しいワークスペース>` **が黙って何も入れないことがある**
   - 新しく作ったワークスペースへの初回インストールで、警告だけ出て `package.json` に追記されないことがあった。
   - 対処: インストール後に必ず `package.json` の dependencies を確認し、無ければもう一度実行する。
+  - 2回目の開発でも、新しいワークスペース（`dependencies` の欄がまだ無い `package.json`）への**初回インストールは毎回空振り**した（`-D` でも同じ）。2回目で追記される。
+  - 同じ `npm install` を複数のワークスペースへ続けて実行すると、一部だけ追記されないことがあった。1つずつ実行して確認する。
+- **`-w <パス>` はカレントディレクトリからの相対パス**。サブディレクトリで `npm install -D x -w packages/web` を実行するとエラーになる。ルートで実行する。
 - **Functions をワークスペースに入れる場合**
   - デプロイ時、Cloud Build はワークスペース内の依存（`@<scope>/shared` など）を解決できない。
   - 対処: **esbuild でワークスペース内の依存を含めて1ファイルにバンドル**する（例 `functions/build.mjs`）。`external` は `functions/package.json` の dependencies にする。
+  - 注意: Functions が直接 import するパッケージ（zod など）を `functions/package.json` に書かないと、shared 経由でバンドルに取り込まれてサイズが増える（前回 25KB → 760KB）。バンドル後のサイズを見て気づける。
   - 注意: `external` の一覧を dependencies から作る場合、サーバー SDK を直接 import するなら、そのパッケージを dependencies に直接書く。書かないとバンドルに取り込まれてしまう（例: `@google-cloud/firestore/pipelines`。firebase-admin の間接依存なので自動では入らない）。
 
 ---
@@ -93,6 +97,7 @@ Firebase（Hosting / Cloud Functions / Firestore Enterprise / Storage / Authenti
   - 対処: `file.getMetadata()` でダウンロードトークンを取り出し（無ければ `setMetadata` で付与し）、URL を自前で組み立てる。
   - URL の形式は `<endpoint>/v0/b/<bucket>/o/<encodeURIComponent(path)>?alt=media&token=<token>`。接続先は、エミュレータなら `http://${FIREBASE_STORAGE_EMULATOR_HOST}`、本番なら `https://firebasestorage.googleapis.com`。
 - **セキュリティルールで権限を判定する書き方**: 三項演算子は避け、`request.auth.token.get('role', '') in ['admin','user']` と書く。
+- **Functions エミュレータは `src` の変更を自動でビルドしない**（`lib/index.js` を読むため）。`npm run build:functions` を実行すると、エミュレータがビルド結果を自動で読み直す。
 - **ルールのテスト**（`@firebase/rules-unit-testing`）: 開発中のエミュレータを共有して使う場合は `clearFirestore()` を呼ばない。テスト用のドキュメントIDで作成・削除する。
 
 ---
@@ -120,6 +125,8 @@ Firebase（Hosting / Cloud Functions / Firestore Enterprise / Storage / Authenti
   - エミュレータ UI を LAN から開くには `emulators.ui.host` を `0.0.0.0` にする。エミュレータ本体は `127.0.0.1` のままでよい（プロキシで中継するため）。
 - **自己署名証明書と自動テスト**: Playwright MCP も、iOS シミュレータの Safari も証明書エラーで止まる。
   - 対処: 環境変数（例 `CLIENT_HTTP=1`）で HTTP 起動に切り替えられる dev スクリプトを用意し、`http://localhost:<port>` でテストする。localhost は安全なコンテキストなので、HTTP でもカメラが使える。
+  - **HTTP 起動は HTTPS と別のポートにする**（例 HTTPS 5273 / HTTP 5283）。前回は同じポートを使ったため、テスト用に HTTP で起動し直したままになり、ユーザーがスマホで QR（`https://<LAN IP>:5273`）を読んでもアクセスできなかった。
+- **ポートが他のプロジェクトと衝突する**: 同じマシンで別の案件の dev server（5173〜5175 など）が動いていて起動に失敗した。**他のプロセスは止めず**、`strictPort: true` にしたうえで別の番号（例 5273 / 5274）を使う。`lsof -nP -iTCP:<port> -sTCP:LISTEN` と `lsof -p <pid> -a -d cwd` で、どのプロジェクトのプロセスか確認できる。
 - **ログのプロキシエラー**: `http proxy error … ECONNREFUSED` が起動直後に出るのは、開いたままのブラウザタブが、エミュレータの準備完了前に通信したため。準備完了後に出なければ問題ない。
 
 ---
@@ -159,7 +166,8 @@ Firebase（Hosting / Cloud Functions / Firestore Enterprise / Storage / Authenti
 3. **再開直後に前回の映像を読む**
    - 対処: 最初のコマから 500ms は読み取り結果を無視する（ウォームアップ）。
    - 実機でも「同じバーコードにカメラを向けたまま次のスキャンを押すと、即座に同じコードを読む」ので、その対策も兼ねている。
-4. **読取枠の外側を暗くする** `boxShadow: 0 0 0 9999px` が、映像エリアの外（下の停止ボタンなど）まで暗くしていた。
+4. **補足**: `@zxing/browser` の読み取りコールバックは第3引数に制御オブジェクト（`controls`）を受け取る。Promise が返る前でも、コールバック内で `ctl.stop()` すればその場で止められる。セッション番号の確認と併用すると確実。
+5. **読取枠の外側を暗くする** `boxShadow: 0 0 0 9999px` が、映像エリアの外（下の停止ボタンなど）まで暗くしていた。
    - 対処: 映像エリアに `overflow: 'hidden'` を付ける。
 
 ---
@@ -194,6 +202,8 @@ Firebase（Hosting / Cloud Functions / Firestore Enterprise / Storage / Authenti
 - **CSV**
   - `Papa.unparse`（papaparse）の出力は最後に改行が付かない。そのまま行を追記すると最終行に連結されてしまうので、`\r\n` を付ける。
   - 出力は BOM 付きの UTF-8。取込は、UTF-8 として読めなければ `TextDecoder('shift_jis')` で読む（Excel の既定の保存形式が Shift\_JIS のため）。
+  - テストで BOM を確認するときは、`fetch` の `res.text()` を使わない（BOM が取り除かれる）。`arrayBuffer()` の先頭3バイト（`EF BB BF`）で確認する。
+  - Node の `TextEncoder` は Shift_JIS に変換できない。テスト用の Shift_JIS のバイト列は `iconv-lite` で作る（手で書いたバイト列は間違えやすい）。
 - **在庫などカウンタ値の同時更新**
   - トランザクションで処理する。エミュレータ上で、同じドキュメントに10件並行で更新しても数が合うことをテストで確認した。
   - 同じドキュメントへの並行更新は、競合が起きても約12件/秒だった。
@@ -217,4 +227,3 @@ Firebase（Hosting / Cloud Functions / Firestore Enterprise / Storage / Authenti
    - 画面: Playwright MCP（HTTP で起動した dev server に対して）。
    - カメラ: SimulatorCameraEx + Maestro（iOS シミュレータの Safari）。
    - 権限: セキュリティルールと API の権限テスト（エミュレータ上）。
-
