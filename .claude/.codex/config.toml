@@ -1,0 +1,3 @@
+[features]
+js_repl = false
+memories = false
